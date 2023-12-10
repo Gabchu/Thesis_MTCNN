@@ -1,6 +1,5 @@
 # utils.py
 import cv2
-import time
 import numpy as np
 
 
@@ -39,3 +38,16 @@ def stack_frames_horizontally(frames):
 
 def stack_frames_vertically(frames):
     return np.vstack(frames)
+
+
+def display_frame(window_name, frame):
+    cv2.imshow(window_name, frame)
+
+
+def wait_key(delay):
+    return cv2.waitKey(delay)
+
+
+def release_resources(cap):
+    cap.release()
+    cv2.destroyAllWindows()

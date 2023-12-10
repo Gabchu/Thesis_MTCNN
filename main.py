@@ -1,12 +1,11 @@
 # main.py
-from face_detection import detect_face
-from eye_detection import detect_eyes
-from eye_detection_function import detect_baby_eyes
+from Face_Detection.face_detection import detect_face
+from Eye_Detection.eye_detection_function import detect_baby_eyes
 from line_notifier import send_line_notification
 from camera import start_camera
 from utils import *
 import time
-from camera import *
+
 
 # Set your LINE Notify access token
 token = "GPHKyqGFnz5cF00jwqn2U6sF1kiqXG0Yg2HjGWeTEGI"
