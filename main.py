@@ -1,11 +1,11 @@
 # main.py
-from Face_Detection.face_detection import detect_face
+from face_detection.face_detection import detect_face_with_nose
 from Eye_Detection.eye_detection_function import detect_baby_eyes
 from line_notifier import send_line_notification
 from camera import start_camera
 from utils import *
+from Nose_detection.nose_detection import initialize_trt_pose, detect_nose
 import time
-
 
 # Set your LINE Notify access token
 token = "GPHKyqGFnz5cF00jwqn2U6sF1kiqXG0Yg2HjGWeTEGI"
@@ -18,6 +18,8 @@ eye_closed_notification_duration = 30
 
 
 def main():
+    # Initialize the trt_pose model
+    trt_pose_model = initialize_trt_pose()
     cap = start_camera()
 
     last_face_detection_time = 0
@@ -27,8 +29,9 @@ def main():
     while True:
         ret, frame = cap.read()
 
-        # Call function to detect face
-        keypoints, confidence_score = detect_face(frame)
+        # Call function to detect face with nose visibility
+        keypoints, confidence_score = detect_face_with_nose(
+            frame, trt_pose_model)
 
         face_detected = False
 
@@ -36,6 +39,11 @@ def main():
             # Draw bounding box and landmarks
             draw_bounding_box(frame, keypoints['box'])
             draw_landmarks(frame, keypoints['keypoints'])
+
+            # Check if the nose is visible
+            nose_visible = detect_nose(frame, trt_pose_model)
+            if not nose_visible:
+                send_line_notification("Baby's nose is not visible")
 
             # Face is detected
             face_detected = True
