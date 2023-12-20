@@ -1,9 +1,10 @@
 # main.py
-from Face_Detection.face_detection import detect_face
+from face_detection.face_detection import detect_face_with_nose
 from Eye_Detection.eye_detection_function import detect_baby_eyes
 from line_notifier import send_line_notification
 from camera import start_camera
 from utils import *
+from Nose_detection.nose_detection import initialize_trt_pose, detect_nose
 import time
 
 # Set your LINE Notify access token
@@ -17,6 +18,8 @@ eye_opened_notification_duration = 3
 
 
 def main():
+    # Initialize the trt_pose model
+    trt_pose_model = initialize_trt_pose()
     cap = start_camera()
 
     no_face_detected_time = None
@@ -29,8 +32,9 @@ def main():
     while True:
         ret, frame = cap.read()
 
-        # Call function to detect face
-        keypoints, confidence_score = detect_face(frame)
+        # Call function to detect face with nose visibility
+        keypoints, confidence_score = detect_face_with_nose(
+            frame, trt_pose_model)
 
         face_detected = keypoints is not None
 
