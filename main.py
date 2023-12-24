@@ -1,99 +1,88 @@
-# main.py
-from face_detection.face_detection import detect_face_with_nose
-from Eye_Detection.eye_detection_function import detect_baby_eyes
+from face_detection import detect_face
+from eye_detection_function import detect_baby_eyes
 from line_notifier import send_line_notification
 from camera import start_camera
 from utils import *
-from Nose_detection.nose_detection import initialize_trt_pose, detect_nose
 import time
-
-
-# Set your LINE Notify access token
-token = "GPHKyqGFnz5cF00jwqn2U6sF1kiqXG0Yg2HjGWeTEGI"
+import cv2
 
 # Cooldown duration for face detection (in seconds)
 cooldown_duration = 60
 
-# Cooldown duration for eye closed notification (in seconds)
-eye_closed_notification_duration = 30
+no_face_detected_time = None
+last_eye_closed_time = None
+waiting_for_eyes = False
+screenshot_taken = False
+first_open_eyes_after_closed = False
 
+vc = start_camera()
+token = "GPHKyqGFnz5cF00jwqn2U6sF1kiqXG0Yg2HjGWeTEGI"
 
-def main():
-    # Initialize the trt_pose model
-    trt_pose_model = initialize_trt_pose()
-    cap = start_camera()
-
-    last_face_detection_time = 0
-    no_face_detected_time = None
-    last_eye_closed_time = None
-
+if __name__ == "__main__":
     while True:
-        ret, frame = cap.read()
+        # Read the raw frame without processing
+        ret, frame = vc.read()
+        if not ret:
+            break
 
-        # Call function to detect face with nose visibility
-        keypoints, confidence_score = detect_face_with_nose(
-            frame, trt_pose_model)
+        # Call function to detect face
+        keypoints = detect_face(frame)
 
-        face_detected = False
-
-        if keypoints is not None:
-            # Draw bounding box and landmarks
-            draw_bounding_box(frame, keypoints['box'])
-            draw_landmarks(frame, keypoints['keypoints'])
-
-            # Face is detected
-            face_detected = True
-
-            # Check if the baby's eyes are closed
-            if detect_baby_eyes(frame, keypoints):
-                if last_eye_closed_time is None:
-                    # Eyes are closed, start the timer
-                    last_eye_closed_time = time.time()
-                elif time.time() - last_eye_closed_time >= eye_closed_notification_duration:
-                    # Eyes have been closed for more than 30 seconds, send a notification
-                    send_line_notification(
-                        "Baby's eyes are closed for more than 30 seconds")
-                    last_eye_closed_time = None  # Reset the timer
-            else:
-                # Eyes are open, reset the timer
-                last_eye_closed_time = None
+        face_detected = keypoints is not None
 
         current_time = time.time()
 
-        # Check if a face was detected
-        if face_detected:
-            if no_face_detected_time is not None:
-                # Face was detected after a period of no detection, reset the timer
-                no_face_detected_time = None
-            if current_time - last_face_detection_time >= cooldown_duration:
-                save_frame(frame, "./image_path/frame.jpg")
-                send_line_notification(
-                    "Face detected", image_path="./image_path/frame.jpg")
-                last_face_detection_time = current_time
-        else:
+        # Check if a face was not detected
+        if keypoints is None:
             if no_face_detected_time is None:
                 # Face not detected, start the timer
                 no_face_detected_time = current_time
-            elif current_time - no_face_detected_time >= 5:
-                # Wait for 5 seconds before sending the notification
+            elif current_time - no_face_detected_time >= 5 and not screenshot_taken:
+                # Wait for 5 seconds before sending the notification and take a screenshot
                 save_frame(frame, "./image_path/frame.jpg")
                 send_line_notification(
                     "Can't detect face", image_path="./image_path/frame.jpg")
                 no_face_detected_time = None  # Reset the timer
+                screenshot_taken = True
+        else:
+            # Face was detected, reset the timer and screenshot flag
+            no_face_detected_time = None
+            screenshot_taken = False
+            # Your existing logic for when a face is detected
+            face_detected = True
 
-        # Display confidence score at the top in red font
-        cv2.putText(frame, f"Confidence: {confidence_score:.2f}",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        # Check if the baby's eyes are closed
+        if not detect_baby_eyes(frame):
+            if last_eye_closed_time is None:
+                # Eyes just closed, record the time
+                last_eye_closed_time = time.time()
+            else:
+                elapsed_closed_time = time.time() - last_eye_closed_time
+                if elapsed_closed_time >= 3:
+                    if not waiting_for_eyes:
+                        # Eyes closed for 3 seconds, start waiting
+                        waiting_for_eyes = True
+                        print("Waiting for eyes!")
+                else:
+                    # Eyes closed, but not for 3 seconds yet
+                    waiting_for_eyes = False
+        else:
+            if waiting_for_eyes:
+                save_frame(frame, "./image_path/frame.jpg")
+                send_line_notification(
+                    "Eyes open", image_path="./image_path/frame.jpg")
+                waiting_for_eyes = False
+            # Eyes are open, reset the timers
+            last_eye_closed_time = None
+            waiting_start_time = None
 
-        display_frame("Camera", frame)
 
-        # Wait for a key event and check if the "Esc" key (ASCII code 27) is pressed
-        key = wait_key(1)
-        if key == 27:  # 27 is the ASCII code for the "Esc" key
+# Additional logic here (display, etc.)
+
+        cv2.imshow("Output", frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    release_resources(cap)
-
-
-if __name__ == "__main__":
-    main()
+vc.release()
+cv2.destroyAllWindows()
